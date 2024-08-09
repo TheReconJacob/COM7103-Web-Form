@@ -8,17 +8,19 @@ function App() {
   const [request, setRequest] = useState('');
   const [requests, setRequests] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    fetchRequests();
-  }, [userId]);
+    if (isLoggedIn) {
+      fetchRequests();
+    }
+  }, [isLoggedIn]);
 
   const fetchRequests = async () => {
     if (userId) {
       const { data, error } = await supabase
         .from('Requests')
-        .select('*')
-        .eq('user_id', userId);
+        .select('id, user_id, Request, status'); // Ensure 'Request' is included here
       if (error) {
         console.error('Error fetching requests:', error);
       } else {
@@ -27,26 +29,41 @@ function App() {
     }
   };
 
-  const handleRegister = async (e) => {
+  const handleAuth = async (e, action) => {
     e.preventDefault();
-    const { data, error } = await supabase
-      .from('Users')
-      .insert([{ email, password }])
-      .select();
-    if (error) {
-      console.error('Error registering user:', error);
-    } else {
-      setUserId(data[0].id);
-      setEmail('');
-      setPassword('');
+    if (action === 'register') {
+      const { data, error } = await supabase
+        .from('Users')
+        .insert([{ email, password }])
+        .select();
+      if (error) {
+        console.error('Error registering user:', error);
+      } else {
+        setUserId(data[0].id);
+        setIsLoggedIn(true);
+      }
+    } else if (action === 'login') {
+      const { data, error } = await supabase
+        .from('Users')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password);
+      if (error || data.length === 0) {
+        console.error('Error logging in:', error || 'Invalid credentials');
+      } else {
+        setUserId(data[0].id);
+        setIsLoggedIn(true);
+      }
     }
+    setEmail('');
+    setPassword('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { data, error } = await supabase
       .from('Requests')
-      .insert([{ user_id: userId, request, status: 'pending' }]);
+      .insert([{ user_id: userId, Request: request, status: 'pending' }]);
     if (error) {
       console.error('Error submitting request:', error);
     } else {
@@ -61,8 +78,9 @@ function App() {
         <h1>Game Request Portal</h1>
       </header>
       <main>
-        {!userId ? (
-          <form onSubmit={handleRegister}>
+        {!isLoggedIn ? (
+          <form>
+            <h2>Register/Login</h2>
             <div>
               <label htmlFor="email">Email:</label>
               <input
@@ -83,7 +101,8 @@ function App() {
                 required
               />
             </div>
-            <button type="submit">Register</button>
+            <button onClick={(e) => handleAuth(e, 'register')}>Register</button>
+            <button onClick={(e) => handleAuth(e, 'login')}>Login</button>
           </form>
         ) : (
           <form onSubmit={handleSubmit}>
@@ -103,9 +122,9 @@ function App() {
           <h2>Submitted Requests</h2>
           <ul>
             {requests.map((req) => (
-              <li key={req.id}>
-                <strong>{req.user_id}</strong>: {req.request} - <em>{req.status}</em>
-              </li>
+              <ul key={req.id}>
+                <strong> {req.Request}</strong> - <em>{req.status}</em>
+              </ul>
             ))}
           </ul>
         </section>
