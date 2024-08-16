@@ -20,7 +20,7 @@ function App() {
     if (userId) {
       const { data, error } = await supabase
         .from('Requests')
-        .select('id, user_id, Request, status'); // Ensure 'Request' is included here
+        .select('id, user_id, Request, status');
       if (error) {
         console.error('Error fetching requests:', error);
       } else {
@@ -61,16 +61,41 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const { data, error } = await supabase
+    if (!request) {
+      console.error('Request cannot be empty');
+      return;
+    }
+    try {
+      const requestBody = { request };
+  
+      const response = await fetch('http://localhost:4000/publish-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+      
+      const { data, error } = await supabase
       .from('Requests')
       .insert([{ user_id: userId, Request: request, status: 'pending' }]);
-    if (error) {
-      console.error('Error submitting request:', error);
-    } else {
-      fetchRequests();
-      setRequest('');
+      if (error) {
+        console.error('Error submitting request:', error);
+      } else {
+        fetchRequests();
+        setRequest('');
+      }
+      if (response.ok) {
+        console.log('Request published successfully!');
+        fetchRequests();
+        setRequest(''); // Clear the input after successful submission
+      } else {
+        console.error('Error publishing request:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error:', error);
     }
-  };
+  };   
 
   return (
     <div className="App">
