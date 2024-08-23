@@ -14,9 +14,11 @@ app.use(express.json());
 app.use(cors());
 
 const rabbitmqUrl = 'amqp://rabbitmq:5672';
+const queueName = 'messageQueue';
 
 const processMessage = async (message) => {
   const messageContent = message.content.toString();
+  console.log('Received message content:', messageContent);
 
   try {
     if (!messageContent) {
@@ -58,14 +60,12 @@ const processMessage = async (message) => {
       console.error('Error logging validation:', logError);
     }
   }
-};  
+};
 
-const consumeMessages = async () => {
+const connectToRabbitMQ = async (retryCount = 0) => {
   try {
     const connection = await amqp.connect(rabbitmqUrl);
     const channel = await connection.createChannel();
-    const queueName = 'messageQueue';
-
     await channel.assertQueue(queueName);
 
     channel.consume(queueName, (message) => {
@@ -78,10 +78,20 @@ const consumeMessages = async () => {
     console.log('Waiting for messages...');
   } catch (error) {
     console.error('Error consuming messages:', error);
+
+    // Retry logic with exponential backoff
+    const maxRetries = 5;
+    if (retryCount < maxRetries) {
+      const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1, 2, 4, 8, 16 seconds
+      console.log(`Retrying to connect in ${retryDelay / 1000} seconds...`);
+      setTimeout(() => connectToRabbitMQ(retryCount + 1), retryDelay);
+    } else {
+      console.error('Max retries reached. Could not connect to RabbitMQ.');
+    }
   }
 };
 
-consumeMessages();
+connectToRabbitMQ();
 
 app.listen(port, () => {
   console.log(`Validation microservice running on port ${port}`);
