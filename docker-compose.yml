@@ -52,6 +52,16 @@ services:
     networks:
       - app-network
 
+  validator:
+    build: ./validator
+    ports:
+      - "5000:5000"
+    depends_on:
+      - rabbitmq
+      - supabase
+    networks:
+      - app-network
+
 volumes:
   db-data:
   supabase-data:
