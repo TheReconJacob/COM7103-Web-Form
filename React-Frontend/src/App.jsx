@@ -66,8 +66,8 @@ function App() {
       return;
     }
     try {
-      const requestBody = { request };
-  
+      const requestBody = { request, userId };
+
       const response = await fetch('http://localhost:4000/publish-request', {
         method: 'POST',
         headers: {
@@ -88,14 +88,14 @@ function App() {
       if (response.ok) {
         console.log('Request published successfully!');
         fetchRequests();
-        setRequest(''); // Clear the input after successful submission
+        setRequest('');
       } else {
         console.error('Error publishing request:', response.statusText);
       }
     } catch (error) {
       console.error('Error:', error);
     }
-  };   
+  };
 
   return (
     <div className="App">
