@@ -20,7 +20,7 @@ function App() {
     if (userId) {
       const { data, error } = await supabase
         .from('Requests')
-        .select('id, user_id, Request, status');
+        .select('id, user_id, request, status');
       if (error) {
         console.error('Error fetching requests:', error);
       } else {
@@ -78,7 +78,7 @@ function App() {
       
       const { data, error } = await supabase
       .from('Requests')
-      .insert([{ user_id: userId, Request: request, status: 'pending' }]);
+      .insert([{ user_id: userId, request: request, status: 'pending' }]);
       if (error) {
         console.error('Error submitting request:', error);
       } else {
@@ -148,7 +148,7 @@ function App() {
           <ul>
             {requests.map((req) => (
               <ul key={req.id}>
-                <strong> {req.Request}</strong> - <em>{req.status}</em>
+                <strong> {req.request}</strong> - <em>{req.status}</em>
               </ul>
             ))}
           </ul>
