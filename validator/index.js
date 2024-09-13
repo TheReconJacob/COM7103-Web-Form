@@ -3,6 +3,7 @@ const cors = require('cors');
 const amqp = require('amqplib');
 const { createClient } = require('@supabase/supabase-js');
 const WebSocket = require('ws');
+const client = require('prom-client');
 
 const app = express();
 const port = 5000;
@@ -23,6 +24,14 @@ const rabbitmqUrl = 'amqp://rabbitmq:5672';
 const queueName = 'messageQueue';
 
 const wss = new WebSocket.Server({ noServer: true });
+
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics();
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
+});
 
 const processMessage = async (message) => {
   const messageContent = message.content.toString();

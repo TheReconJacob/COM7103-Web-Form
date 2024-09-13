@@ -3,6 +3,7 @@ const cors = require('cors');
 const amqp = require('amqplib');
 const fetch = require('node-fetch');
 const { createClient } = require('@supabase/supabase-js');
+const client = require('prom-client');
 
 const app = express();
 const port = 4000;
@@ -72,12 +73,25 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+const collectDefaultMetrics = client.collectDefaultMetrics;
+collectDefaultMetrics();
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
+});
+
+const requestCounter = new client.Counter({
+  name: 'request_count',
+  help: 'Total number of requests processed'
+});
+
 app.post('/publish-request', authenticateToken, async (req, res) => {
   try {
+    requestCounter.inc();
     const { request } = req.body;
     const userId = req.user.id;
 
-    // Insert request into the first database
     const { data: syncData1, error: syncError1 } = await supabase1
       .from('Requests')
       .insert([{ request, status: 'pending', user_id: userId }]);
@@ -87,7 +101,6 @@ app.post('/publish-request', authenticateToken, async (req, res) => {
       return res.status(500).send('Error syncing request to first database');
     }
 
-    // Insert request into the second database
     const { data: syncData2, error: syncError2 } = await supabase2
       .from('Requests')
       .insert([{ request, status: 'pending' }]);
