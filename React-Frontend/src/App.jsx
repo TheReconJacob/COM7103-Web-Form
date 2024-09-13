@@ -32,29 +32,32 @@ function App() {
   const handleAuth = async (e, action) => {
     e.preventDefault();
     if (action === 'register') {
-      const { data, error } = await supabase
-        .from('Users')
-        .insert([{ email, password }])
-        .select();
+      const { data, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+      });
       if (error) {
-        console.error('Error registering user:', error);
+        console.error('Error registering user:', error.message);
       } else {
-        setUserId(data[0].id);
+        console.log('Registration successful:', data);
+        setUserId(data.user.id);
         setIsLoggedIn(true);
       }
     } else if (action === 'login') {
-      const { data, error } = await supabase
-        .from('Users')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password);
-      if (error || data.length === 0) {
-        console.error('Error logging in:', error || 'Invalid credentials');
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+  
+      if (error) {
+        console.error('Error logging in:', error.message);
       } else {
-        setUserId(data[0].id);
+        console.log('Login successful:', data);
+        setUserId(data.user.id);
         setIsLoggedIn(true);
       }
     }
+  
     setEmail('');
     setPassword('');
   };
@@ -65,26 +68,37 @@ function App() {
       console.error('Request cannot be empty');
       return;
     }
+    
     try {
-      const requestBody = { request, userId };
-
+      // Get the authenticated user and their session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+      if (sessionError) {
+        console.error('Error retrieving session:', sessionError.message);
+        return;
+      }
+  
+      if (!session) {
+        console.error('User is not logged in');
+        return;
+      }
+  
+      // Extract the Bearer token from the session
+      const token = session.access_token;
+  
+      // Use the authenticated user's ID
+      const userId = session.user.id;
+  
+      // Send request to the backend with the Bearer token
       const response = await fetch('http://localhost:4000/publish-request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`, // Pass the Bearer token
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ request, userId }),
       });
-      
-      const { data, error } = await supabase
-      .from('Requests')
-      .insert([{ user_id: userId, request: request, status: 'pending' }]);
-      if (error) {
-        console.error('Error submitting request:', error);
-      } else {
-        fetchRequests();
-        setRequest('');
-      }
+  
       if (response.ok) {
         console.log('Request published successfully!');
         fetchRequests();
@@ -95,7 +109,7 @@ function App() {
     } catch (error) {
       console.error('Error:', error);
     }
-  };
+  };  
 
   return (
     <div className="App">
@@ -148,7 +162,7 @@ function App() {
           <ul>
             {requests.map((req) => (
               <ul key={req.id}>
-                <strong> {req.request}</strong> - <em>{req.status}</em>
+                <strong>{req.request}</strong> - <em>{req.status}</em>
               </ul>
             ))}
           </ul>

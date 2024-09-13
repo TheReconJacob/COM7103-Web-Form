@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const amqp = require('amqplib');
+const fetch = require('node-fetch');
 const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
@@ -41,27 +42,59 @@ const publishToRabbitMQ = async (message) => {
   }
 };
 
-app.post('/publish-request', async (req, res) => {
+const authenticateToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send('Unauthorized: No token provided');
+  }
+  
+  const token = authHeader.split(' ')[1];
   try {
-    const { request, userId } = req.body;
+    const response = await fetch(`${supabaseUrl1}/auth/v1/user`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'apikey': supabaseKey1
+      }
+    });
+    const data = await response.json();
+    console.log('Supabase response:', response.status, data);
 
-    const { data: user, error: userError } = await supabase1
-      .from('Users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    if (userError || !user) {
-      console.error('Validation failed: User not found');
-      return res.status(400).send('Validation failed: User not found');
+    if (!response.ok || !data || !data.id) {
+      console.error('Validation failed: User not authenticated');
+      return res.status(401).send('Unauthorized: Invalid token');
+    }
+    
+    req.user = data;
+    next();
+  } catch (error) {
+    console.error('Error validating token:', error);
+    res.status(500).send('Internal Server Error');
+  }
+};
+
+app.post('/publish-request', authenticateToken, async (req, res) => {
+  try {
+    const { request } = req.body;
+    const userId = req.user.id;
+
+    // Insert request into the first database
+    const { data: syncData1, error: syncError1 } = await supabase1
+      .from('Requests')
+      .insert([{ request, status: 'pending', user_id: userId }]);
+
+    if (syncError1) {
+      console.error('Error syncing request to first database:', syncError1);
+      return res.status(500).send('Error syncing request to first database');
     }
 
-    const { data: syncData, error: syncError } = await supabase2
+    // Insert request into the second database
+    const { data: syncData2, error: syncError2 } = await supabase2
       .from('Requests')
       .insert([{ request, status: 'pending' }]);
 
-    if (syncError) {
-      console.error('Error syncing request to second database:', syncError);
-      return res.status(500).send('Error syncing request');
+    if (syncError2) {
+      console.error('Error syncing request to second database:', syncError2);
+      return res.status(500).send('Error syncing request to second database');
     }
 
     await publishToRabbitMQ(request);
