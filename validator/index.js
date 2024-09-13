@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const amqp = require('amqplib');
 const { createClient } = require('@supabase/supabase-js');
+const WebSocket = require('ws');
 
 const app = express();
 const port = 5000;
@@ -20,6 +21,8 @@ app.use(cors());
 
 const rabbitmqUrl = 'amqp://rabbitmq:5672';
 const queueName = 'messageQueue';
+
+const wss = new WebSocket.Server({ noServer: true });
 
 const processMessage = async (message) => {
   const messageContent = message.content.toString();
@@ -74,6 +77,13 @@ const processMessage = async (message) => {
         .insert([{ request, status: 'processed' }]);
     }
 
+    // Notify all connected WebSocket clients
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({ request, status: 'processed' }));
+      }
+    });
+
     console.log('Request processed successfully');
   } catch (error) {
     console.error('Validation or processing error:', error.message);
@@ -118,6 +128,12 @@ const connectToRabbitMQ = async (retryCount = 0) => {
 
 connectToRabbitMQ();
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Validation microservice running on port ${port}`);
+});
+
+server.on('upgrade', (request, socket, head) => {
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request);
+  });
 });

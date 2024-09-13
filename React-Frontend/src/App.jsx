@@ -13,6 +13,16 @@ function App() {
   useEffect(() => {
     if (isLoggedIn) {
       fetchRequests();
+      const ws = new WebSocket('ws://localhost:5000');
+      ws.onmessage = (event) => {
+        const updatedRequest = JSON.parse(event.data);
+        setRequests((prevRequests) =>
+          prevRequests.map((req) =>
+            req.request === updatedRequest.request ? updatedRequest : req
+          )
+        );
+      };
+      return () => ws.close();
     }
   }, [isLoggedIn]);
 
@@ -40,8 +50,7 @@ function App() {
         console.error('Error registering user:', error.message);
       } else {
         console.log('Registration successful:', data);
-        setUserId(data.user.id);
-        setIsLoggedIn(true);
+        alert('Registration successful! Please log in.');
       }
     } else if (action === 'login') {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -69,8 +78,8 @@ function App() {
       return;
     }
     
+
     try {
-      // Get the authenticated user and their session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   
       if (sessionError) {
@@ -82,19 +91,13 @@ function App() {
         console.error('User is not logged in');
         return;
       }
-  
-      // Extract the Bearer token from the session
       const token = session.access_token;
-  
-      // Use the authenticated user's ID
       const userId = session.user.id;
-  
-      // Send request to the backend with the Bearer token
       const response = await fetch('http://localhost:4000/publish-request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`, // Pass the Bearer token
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ request, userId }),
       });
