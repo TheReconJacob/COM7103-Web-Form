@@ -9,7 +9,6 @@ amqp.connect('amqp://localhost', (err, connection) => {
     const queue = 'my-queue';
     channel.assertQueue(queue, { durable: false });
 
-    // Publish a message
     channel.sendToQueue(queue, Buffer.from('Hello from RabbitMQ!'));
 
     console.log('Message sent to RabbitMQ');
